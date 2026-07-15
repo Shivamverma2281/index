@@ -108,11 +108,20 @@
             line-height: 1.6;
             color: #000;
             white-space: pre-wrap;
-            outline: none; /* Focus outline hatane ke liye taaki print me box na dikhe */
-            min-height: 250mm; /* Poore sheet ko clickable banane ke liye */
+            outline: none;
+            min-height: 250mm;
+            padding: 10px;
+            border-radius: 4px;
+            transition: background 0.3s;
         }
 
-        /* --- PRINT MEDIA STYLING (केवल A4 प्रिंट करने के लिए) --- */
+        /* Editing ke dauran user ko pata chalne ke liye halka border */
+        #translatedText:focus {
+            background: #fdfdfd;
+            border: 1px dashed #007bff;
+        }
+
+        /* --- PRINT MEDIA STYLING --- */
         @media print {
             body * {
                 visibility: hidden;
@@ -130,6 +139,10 @@
                 border: none;
                 margin: 0;
                 padding: 0;
+            }
+            #translatedText {
+                border: none !important;
+                background: transparent !important;
             }
         }
     </style>
@@ -159,16 +172,17 @@
 </div>
 
 <!-- A4 Paper Preview Component -->
-<div class="a4-container-label">A4 Document Print Preview (Click inside to edit before printing)</div>
+<div class="a4-container-label">A4 Document Print Preview (Click inside to type/edit when stopped)</div>
 <div class="a4">
-    <!-- contenteditable="true" add kiya gaya hai taaki aap edit kar sakein -->
-    <div id="translatedText" contenteditable="true">Translated & Grammar-Corrected text will appear here. Feel free to click here and edit...</div>
+    <!-- contenteditable ko handle karne ke liye events lagaye gaye hain -->
+    <div id="translatedText" contenteditable="true" oninput="handleManualInput(this)">Translated & Grammar-Corrected text will appear here. Press 'Stop' anytime to edit freely...</div>
 </div>
 
 <!-- --- JAVASCRIPT LOGIC --- -->
 <script>
     let recognition;
     let isListening = false;
+    let isUserEditing = false; // Check karne ke liye ki user type kar raha hai ya nahi
 
     // Check Browser Compatibility for Speech Recognition
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -183,8 +197,12 @@
             let text = event.results[currentResultIndex][0].transcript;
 
             document.getElementById("speechText").value = text;
-            updateStatus("Translating & Refining Grammar...");
-            translateText(text);
+            
+            // Agar user khud type kar raha hai toh voice input overwrite nahi karega
+            if (!isUserEditing) {
+                updateStatus("Translating & Refining Grammar...");
+                translateText(text);
+            }
         };
 
         recognition.onerror = function(event) {
@@ -196,7 +214,7 @@
             if(isListening) {
                 recognition.start();
             } else {
-                updateStatus("Status: Stopped (बंद है)");
+                updateStatus("Status: Stopped (Aap ab edit kar sakte hain)");
             }
         };
 
@@ -208,6 +226,7 @@
     // Start Listening Function
     function startListening() {
         if (!recognition) return;
+        isUserEditing = false; // Voice start hote hi manual lock hata dein
 
         let option = document.getElementById("language").value;
         if (option === "en-hi") {
@@ -226,7 +245,11 @@
         if (!recognition) return;
         isListening = false;
         recognition.stop();
-        updateStatus("Status: Stopped (बंद है)");
+    }
+
+    // Jab user khud A4 sheet par click karke likhega
+    function handleManualInput(element) {
+        isUserEditing = true; // System ko batao ki user abhi manually text fix kar raha hai
     }
 
     // AI Grammar & Spelling Correction Engine
@@ -286,20 +309,23 @@
                 updateStatus("Polishing Grammar & Structure...");
                 let finalPolishedText = await correctGrammarAndSpelling(rawTranslation, target);
 
-                document.getElementById("translatedText").innerHTML = finalPolishedText;
-                updateStatus("Status: Listening... (Done)");
+                // Sirf tabhi update karein agar user beech me khud se type na karne laga ho
+                if (!isUserEditing) {
+                    document.getElementById("translatedText").innerHTML = finalPolishedText;
+                    updateStatus("Status: Listening... (Done)");
+                }
             } else {
-                document.getElementById("translatedText").innerHTML = "Translation error.";
+                if(!isUserEditing) document.getElementById("translatedText").innerHTML = "Translation error.";
                 updateStatus("Status: Error in translation process");
             }
         } catch (error) {
             console.error("Translation Fetch Error:", error);
-            document.getElementById("translatedText").innerHTML = "Failed to fetch translation.";
+            if(!isUserEditing) document.getElementById("translatedText").innerHTML = "Failed to fetch translation.";
             updateStatus("Status: Error fetching translation");
         }
     }
 
-    // Print Function (Triggers A4 Print Layout)
+    // Print Function
     function printPage() {
         window.print();
     }
