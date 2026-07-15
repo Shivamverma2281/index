@@ -160,7 +160,6 @@
 
     <button class="btn-start" onclick="startListening()">Start</button>
     <button class="btn-stop" onclick="stopListening()">Stop</button>
-    <!-- Is button ka naam ab Print / Share ho gaya hai -->
     <button class="btn-print" onclick="printPage()">Print / Share</button>
 
     <div id="statusText" class="status">Status: Idle</div>
@@ -175,7 +174,8 @@
 <!-- A4 Paper Preview Component -->
 <div class="a4-container-label">A4 Document Print Preview (Click inside to type/edit when stopped)</div>
 <div class="a4">
-    <div id="translatedText" contenteditable="true" oninput="handleManualInput(this)">Translated & Grammar-Corrected text will appear here. Press 'Stop' anytime to edit freely...</div>
+    <!-- Default Text ko clean rakhne ke liye empty div use kiya hai taaki bolte hi likhna shuru ho jaye -->
+    <div id="translatedText" contenteditable="true" oninput="handleManualInput(this)" placeholder="Translated & Grammar-Corrected text will appear here. Press 'Stop' anytime to edit freely..."></div>
 </div>
 
 <!-- --- JAVASCRIPT LOGIC --- -->
@@ -277,6 +277,7 @@
         }
     }
 
+    // --- CHANGED TRANSLATION / APPEND LOGIC ---
     async function translateText(text) {
         let option = document.getElementById("language").value;
         let source, target;
@@ -302,31 +303,36 @@
                 let finalPolishedText = await correctGrammarAndSpelling(rawTranslation, target);
 
                 if (!isUserEditing) {
-                    document.getElementById("translatedText").innerHTML = finalPolishedText;
+                    let container = document.getElementById("translatedText");
+                    
+                    // Purane text ko nikalenge
+                    let oldText = container.innerHTML.trim();
+                    
+                    // Agar container khali nahi hai, to ek space dekar naya text aage jodenge (Append karenge)
+                    if (oldText !== "") {
+                        container.innerHTML = oldText + " " + finalPolishedText;
+                    } else {
+                        container.innerHTML = finalPolishedText;
+                    }
+                    
                     updateStatus("Status: Listening... (Done)");
                 }
             } else {
-                if(!isUserEditing) document.getElementById("translatedText").innerHTML = "Translation error.";
                 updateStatus("Status: Error in translation process");
             }
         } catch (error) {
             console.error("Translation Fetch Error:", error);
-            if(!isUserEditing) document.getElementById("translatedText").innerHTML = "Failed to fetch translation.";
             updateStatus("Status: Error fetching translation");
         }
     }
 
-    // --- CHANGED PRINT / SHARE LOGIC ---
     async function printPage() {
-        // A4 paper ka translated/edited text nikalenge
         let textToShare = document.getElementById("translatedText").innerText;
 
-        // Agar user ne text change nahi kiya hai ya empty hai
-        if (!textToShare || textToShare.startsWith("Translated &")) {
+        if (!textToShare) {
             textToShare = "No text translated yet.";
         }
 
-        // Check karenge agar mobile phone Share feature support karta hai
         if (navigator.share) {
             try {
                 await navigator.share({
@@ -336,11 +342,9 @@
                 updateStatus("Document Shared Successfully!");
             } catch (err) {
                 console.log("Share cancelled or failed, trying default print...", err);
-                // Agar share cancel ho jaye ya error aaye to safe side default print chalega
                 window.print();
             }
         } else {
-            // Agar browser share API support nahi karta (Jaise Desktop Chrome), to normal print window khulegi
             window.print();
         }
     }
