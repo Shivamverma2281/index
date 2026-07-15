@@ -160,7 +160,8 @@
 
     <button class="btn-start" onclick="startListening()">Start</button>
     <button class="btn-stop" onclick="stopListening()">Stop</button>
-    <button class="btn-print" onclick="printPage()">Print</button>
+    <!-- Is button ka naam ab Print / Share ho gaya hai -->
+    <button class="btn-print" onclick="printPage()">Print / Share</button>
 
     <div id="statusText" class="status">Status: Idle</div>
 </div>
@@ -174,7 +175,6 @@
 <!-- A4 Paper Preview Component -->
 <div class="a4-container-label">A4 Document Print Preview (Click inside to type/edit when stopped)</div>
 <div class="a4">
-    <!-- contenteditable ko handle karne ke liye events lagaye gaye hain -->
     <div id="translatedText" contenteditable="true" oninput="handleManualInput(this)">Translated & Grammar-Corrected text will appear here. Press 'Stop' anytime to edit freely...</div>
 </div>
 
@@ -182,23 +182,20 @@
 <script>
     let recognition;
     let isListening = false;
-    let isUserEditing = false; // Check karne ke liye ki user type kar raha hai ya nahi
+    let isUserEditing = false; 
 
-    // Check Browser Compatibility for Speech Recognition
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = false;
 
-        // Handle Speech results
         recognition.onresult = function(event) {
             let currentResultIndex = event.results.length - 1;
             let text = event.results[currentResultIndex][0].transcript;
 
             document.getElementById("speechText").value = text;
             
-            // Agar user khud type kar raha hai toh voice input overwrite nahi karega
             if (!isUserEditing) {
                 updateStatus("Translating & Refining Grammar...");
                 translateText(text);
@@ -223,10 +220,9 @@
         document.getElementById("statusText").innerText = "Status: Browser Not Supported";
     }
 
-    // Start Listening Function
     function startListening() {
         if (!recognition) return;
-        isUserEditing = false; // Voice start hote hi manual lock hata dein
+        isUserEditing = false; 
 
         let option = document.getElementById("language").value;
         if (option === "en-hi") {
@@ -240,19 +236,16 @@
         updateStatus("Status: Listening... Speak now (आवाज़ सुनी जा रही है...)");
     }
 
-    // Stop Listening Function
     function stopListening() {
         if (!recognition) return;
         isListening = false;
         recognition.stop();
     }
 
-    // Jab user khud A4 sheet par click karke likhega
     function handleManualInput(element) {
-        isUserEditing = true; // System ko batao ki user abhi manually text fix kar raha hai
+        isUserEditing = true; 
     }
 
-    // AI Grammar & Spelling Correction Engine
     async function correctGrammarAndSpelling(text, langCode) {
         try {
             let checkLang = (langCode === "en") ? "en-US" : "hi-IN";
@@ -284,7 +277,6 @@
         }
     }
 
-    // Translation API Call Function
     async function translateText(text) {
         let option = document.getElementById("language").value;
         let source, target;
@@ -309,7 +301,6 @@
                 updateStatus("Polishing Grammar & Structure...");
                 let finalPolishedText = await correctGrammarAndSpelling(rawTranslation, target);
 
-                // Sirf tabhi update karein agar user beech me khud se type na karne laga ho
                 if (!isUserEditing) {
                     document.getElementById("translatedText").innerHTML = finalPolishedText;
                     updateStatus("Status: Listening... (Done)");
@@ -325,12 +316,35 @@
         }
     }
 
-    // Print Function
-    function printPage() {
-        window.print();
+    // --- CHANGED PRINT / SHARE LOGIC ---
+    async function printPage() {
+        // A4 paper ka translated/edited text nikalenge
+        let textToShare = document.getElementById("translatedText").innerText;
+
+        // Agar user ne text change nahi kiya hai ya empty hai
+        if (!textToShare || textToShare.startsWith("Translated &")) {
+            textToShare = "No text translated yet.";
+        }
+
+        // Check karenge agar mobile phone Share feature support karta hai
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Translated Document',
+                    text: textToShare
+                });
+                updateStatus("Document Shared Successfully!");
+            } catch (err) {
+                console.log("Share cancelled or failed, trying default print...", err);
+                // Agar share cancel ho jaye ya error aaye to safe side default print chalega
+                window.print();
+            }
+        } else {
+            // Agar browser share API support nahi karta (Jaise Desktop Chrome), to normal print window khulegi
+            window.print();
+        }
     }
 
-    // Helper function to update status
     function updateStatus(msg) {
         document.getElementById("statusText").innerText = msg;
     }
