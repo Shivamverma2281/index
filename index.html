@@ -108,6 +108,8 @@
             line-height: 1.6;
             color: #000;
             white-space: pre-wrap;
+            outline: none; /* Focus outline hatane ke liye taaki print me box na dikhe */
+            min-height: 250mm; /* Poore sheet ko clickable banane ke liye */
         }
 
         /* --- PRINT MEDIA STYLING (केवल A4 प्रिंट करने के लिए) --- */
@@ -157,9 +159,10 @@
 </div>
 
 <!-- A4 Paper Preview Component -->
-<div class="a4-container-label">A4 Document Print Preview</div>
+<div class="a4-container-label">A4 Document Print Preview (Click inside to edit before printing)</div>
 <div class="a4">
-    <div id="translatedText">Translated & Grammar-Corrected text will appear here inside the A4 sheet...</div>
+    <!-- contenteditable="true" add kiya gaya hai taaki aap edit kar sakein -->
+    <div id="translatedText" contenteditable="true">Translated & Grammar-Corrected text will appear here. Feel free to click here and edit...</div>
 </div>
 
 <!-- --- JAVASCRIPT LOGIC --- -->
@@ -240,7 +243,6 @@
             let data = await response.json();
             
             let correctedText = text;
-            // Matches ko reverse loop karte hain taaki replace karne par string offsets na bigdein
             if (data.matches && data.matches.length > 0) {
                 for (let i = data.matches.length - 1; i >= 0; i--) {
                     let match = data.matches[i];
@@ -255,7 +257,7 @@
             return correctedText;
         } catch (err) {
             console.error("Grammar Checker Error:", err);
-            return text; // Error hone par base translated text return hoga
+            return text; 
         }
     }
 
@@ -281,7 +283,6 @@
             if(data.responseData && data.responseData.translatedText) {
                 let rawTranslation = data.responseData.translatedText;
                 
-                // --- STEP: Grammar and Spelling AI processing ---
                 updateStatus("Polishing Grammar & Structure...");
                 let finalPolishedText = await correctGrammarAndSpelling(rawTranslation, target);
 
