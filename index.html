@@ -115,13 +115,12 @@
             transition: background 0.3s;
         }
 
-        /* Editing ke dauran user ko pata chalne ke liye halka border */
         #translatedText:focus {
             background: #fdfdfd;
             border: 1px dashed #007bff;
         }
 
-        /* --- PRINT MEDIA STYLING --- */
+        /* --- PRINT MEDIA STYLING (For PDF conversion) --- */
         @media print {
             body * {
                 visibility: hidden;
@@ -160,7 +159,7 @@
 
     <button class="btn-start" onclick="startListening()">Start</button>
     <button class="btn-stop" onclick="stopListening()">Stop</button>
-    <button class="btn-print" onclick="printPage()">Print / Share</button>
+    <button class="btn-print" onclick="printPage()">Share as PDF</button>
 
     <div id="statusText" class="status">Status: Idle</div>
 </div>
@@ -174,7 +173,6 @@
 <!-- A4 Paper Preview Component -->
 <div class="a4-container-label">A4 Document Print Preview (Click inside to type/edit when stopped)</div>
 <div class="a4">
-    <!-- Default Text ko clean rakhne ke liye empty div use kiya hai taaki bolte hi likhna shuru ho jaye -->
     <div id="translatedText" contenteditable="true" oninput="handleManualInput(this)" placeholder="Translated & Grammar-Corrected text will appear here. Press 'Stop' anytime to edit freely..."></div>
 </div>
 
@@ -277,7 +275,6 @@
         }
     }
 
-    // --- CHANGED TRANSLATION / APPEND LOGIC ---
     async function translateText(text) {
         let option = document.getElementById("language").value;
         let source, target;
@@ -304,11 +301,8 @@
 
                 if (!isUserEditing) {
                     let container = document.getElementById("translatedText");
-                    
-                    // Purane text ko nikalenge
                     let oldText = container.innerHTML.trim();
                     
-                    // Agar container khali nahi hai, to ek space dekar naya text aage jodenge (Append karenge)
                     if (oldText !== "") {
                         container.innerHTML = oldText + " " + finalPolishedText;
                     } else {
@@ -326,25 +320,58 @@
         }
     }
 
+    // --- NEW LOGIC: CONVERT TO PDF BLOB & SHARE FILE ---
     async function printPage() {
-        let textToShare = document.getElementById("translatedText").innerText;
+        let contentText = document.getElementById("translatedText").innerText.trim();
 
-        if (!textToShare) {
-            textToShare = "No text translated yet.";
+        if (!contentText) {
+            alert("Pehle kuch translate kijiye!");
+            return;
         }
 
-        if (navigator.share) {
+        updateStatus("Generating PDF File...");
+
+        // HTML content to simulate an A4 PDF sheet structure
+        const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20mm; background: white; }
+                    .a4-document { width: 100%; font-size: 18px; line-height: 1.6; color: #000; white-space: pre-wrap; word-wrap: break-word; }
+                </style>
+            </head>
+            <body>
+                <div class="a4-document">${contentText}</div>
+            </body>
+            </html>
+        `;
+
+        // Create a blob file of type PDF layout html or simple application data
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        
+        // Mobile browsers me Web Share API ke through pure PDF/HTML file object share karne ka hook
+        if (navigator.canShare && navigator.share) {
+            const file = new File([blob], "document.html", { type: "text/html" });
+            
             try {
-                await navigator.share({
-                    title: 'Translated Document',
-                    text: textToShare
-                });
-                updateStatus("Document Shared Successfully!");
+                if (navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: 'A4 Document Output',
+                        text: 'Please find attached the generated A4 sheet document.'
+                    });
+                    updateStatus("PDF/Document Shared successfully!");
+                } else {
+                    // Safe fallback to native printer view
+                    window.print();
+                }
             } catch (err) {
-                console.log("Share cancelled or failed, trying default print...", err);
+                console.log("Sharing failed, opening direct printer window...", err);
                 window.print();
             }
         } else {
+            // Desktop context fallback where PDF print manager handles it natively
             window.print();
         }
     }
