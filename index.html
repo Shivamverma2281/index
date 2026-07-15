@@ -134,13 +134,13 @@
 </head>
 <body>
 
-<h1>Voice Translator</h1>
+<h1>Voice Translator & Auto-Grammar Corrector</h1>
 
 <!-- Controls Panel -->
 <div class="controls">
     <select id="language">
         <option value="en-hi">English to Hindi (अंग्रेजी से हिंदी)</option>
-        <option value="hi-en">Hindi to English (हिंदी से अंग्रेजी)</option>
+        <option value="hi-en">Hindi to English (हिंदी से अंग्रेजी) + AI Grammar</option>
     </select>
 
     <button class="btn-start" onclick="startListening()">Start</button>
@@ -159,7 +159,7 @@
 <!-- A4 Paper Preview Component -->
 <div class="a4-container-label">A4 Document Print Preview</div>
 <div class="a4">
-    <div id="translatedText">Translated text will appear here inside the A4 sheet...</div>
+    <div id="translatedText">Translated & Grammar-Corrected text will appear here inside the A4 sheet...</div>
 </div>
 
 <!-- --- JAVASCRIPT LOGIC --- -->
@@ -180,7 +180,7 @@
             let text = event.results[currentResultIndex][0].transcript;
 
             document.getElementById("speechText").value = text;
-            updateStatus("Translating... (अनुवाद हो रहा है...)");
+            updateStatus("Translating & Refining Grammar...");
             translateText(text);
         };
 
@@ -191,7 +191,6 @@
 
         recognition.onend = function() {
             if(isListening) {
-                // Automatically restart if stopped due to silence but 'Stop' wasn't clicked
                 recognition.start();
             } else {
                 updateStatus("Status: Stopped (बंद है)");
@@ -209,9 +208,9 @@
 
         let option = document.getElementById("language").value;
         if (option === "en-hi") {
-            recognition.lang = "en-US"; // Listens to English
+            recognition.lang = "en-US"; 
         } else {
-            recognition.lang = "hi-IN"; // Listens to Hindi
+            recognition.lang = "hi-IN"; 
         }
 
         isListening = true;
@@ -227,6 +226,39 @@
         updateStatus("Status: Stopped (बंद है)");
     }
 
+    // AI Grammar & Spelling Correction Engine
+    async function correctGrammarAndSpelling(text, langCode) {
+        try {
+            let checkLang = (langCode === "en") ? "en-US" : "hi-IN";
+            let response = await fetch("https://api.languagetoolplus.com/v2/check", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: `text=${encodeURIComponent(text)}&language=${checkLang}`
+            });
+            let data = await response.json();
+            
+            let correctedText = text;
+            // Matches ko reverse loop karte hain taaki replace karne par string offsets na bigdein
+            if (data.matches && data.matches.length > 0) {
+                for (let i = data.matches.length - 1; i >= 0; i--) {
+                    let match = data.matches[i];
+                    if (match.replacements && match.replacements.length > 0) {
+                        let bestSuggestion = match.replacements[0].value;
+                        let start = match.offset;
+                        let end = match.offset + match.length;
+                        correctedText = correctedText.substring(0, start) + bestSuggestion + correctedText.substring(end);
+                    }
+                }
+            }
+            return correctedText;
+        } catch (err) {
+            console.error("Grammar Checker Error:", err);
+            return text; // Error hone par base translated text return hoga
+        }
+    }
+
     // Translation API Call Function
     async function translateText(text) {
         let option = document.getElementById("language").value;
@@ -240,7 +272,6 @@
             target = "en";
         }
 
-        // Using MyMemory Free Translation API
         let url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${source}|${target}`;
 
         try {
@@ -248,11 +279,17 @@
             let data = await response.json();
 
             if(data.responseData && data.responseData.translatedText) {
-                document.getElementById("translatedText").innerHTML = data.responseData.translatedText;
-                updateStatus("Status: Listening... (अनुवाद पूरा हुआ)");
+                let rawTranslation = data.responseData.translatedText;
+                
+                // --- STEP: Grammar and Spelling AI processing ---
+                updateStatus("Polishing Grammar & Structure...");
+                let finalPolishedText = await correctGrammarAndSpelling(rawTranslation, target);
+
+                document.getElementById("translatedText").innerHTML = finalPolishedText;
+                updateStatus("Status: Listening... (Done)");
             } else {
                 document.getElementById("translatedText").innerHTML = "Translation error.";
-                updateStatus("Status: Listening... (अनुवाद में त्रुटि)");
+                updateStatus("Status: Error in translation process");
             }
         } catch (error) {
             console.error("Translation Fetch Error:", error);
